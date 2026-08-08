@@ -1,3 +1,12 @@
+import {
+  BaseFormatConverter,
+  type AdapterPostableMessage,
+  type CardChild,
+  parseMarkdown,
+  type Root,
+  stringifyMarkdown,
+} from "chat";
+
 /**
  * Plain-text format converter for iMessage via Sendblue.
  *
@@ -5,6 +14,32 @@
  * rendered natively. Outbound messages strip all formatting. Inbound messages
  * are treated as plain text.
  */
+
+export class SendblueFormatConverter extends BaseFormatConverter {
+  fromAst(ast: Root): string {
+    return toPlainText(stringifyMarkdown(ast));
+  }
+
+  toAst(platformText: string): Root {
+    return parseMarkdown(platformText);
+  }
+
+  override renderPostable(message: AdapterPostableMessage): string {
+    return toPlainText(super.renderPostable(message));
+  }
+
+  protected override cardChildToFallbackText(
+    child: CardChild,
+  ): string | null {
+    if (child.type === "actions") {
+      const choices = child.children.flatMap((action, index) =>
+        "label" in action ? [`${index + 1}. ${action.label}`] : [],
+      );
+      return choices.join("\n") || null;
+    }
+    return super.cardChildToFallbackText(child);
+  }
+}
 
 /**
  * Strip markdown-style formatting for Sendblue outbound messages.

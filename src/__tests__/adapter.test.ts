@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { Actions, Button, Card, CardText } from "chat";
 import type { SendblueMessagePayload } from "../types";
 
 const sendMock = mock(() =>
@@ -200,6 +201,54 @@ describe("SendblueAdapter", () => {
         unknown
       >;
       expect(args.content).toBe("bold text");
+    });
+
+    test("renders card prompts and actions as plain-text choices", async () => {
+      const adapter = createAdapter();
+      const threadId = adapter.encodeThreadId({
+        fromNumber: "+13137386158",
+        contactNumber: "+14155551234",
+      });
+
+      await adapter.postMessage(
+        threadId,
+        Card({
+          children: [
+            CardText("Which weather should I grab?"),
+            Actions([
+              Button({ id: "iowa_city", label: "Iowa City" }),
+              Button({ id: "new_york_city", label: "New York City" }),
+            ]),
+          ],
+        }),
+      );
+
+      const args = (sendMock.mock.calls as unknown[][])[0]![0] as Record<
+        string,
+        unknown
+      >;
+      expect(args.content).toBe(
+        "Which weather should I grab?\n1. Iowa City\n2. New York City",
+      );
+    });
+
+    test("uses explicit card fallback text", async () => {
+      const adapter = createAdapter();
+      const threadId = adapter.encodeThreadId({
+        fromNumber: "+13137386158",
+        contactNumber: "+14155551234",
+      });
+
+      await adapter.postMessage(threadId, {
+        card: Card({ children: [CardText("Ignored fallback")] }),
+        fallbackText: "Choose **one**",
+      });
+
+      const args = (sendMock.mock.calls as unknown[][])[0]![0] as Record<
+        string,
+        unknown
+      >;
+      expect(args.content).toBe("Choose one");
     });
   });
 

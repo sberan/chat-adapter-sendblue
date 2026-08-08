@@ -16,7 +16,10 @@ import type {
 } from "chat";
 import { ConsoleLogger, Message, parseMarkdown, stringifyMarkdown } from "chat";
 import SendblueAPI from "sendblue";
-import { toPlainText } from "./format-converter";
+import {
+  SendblueFormatConverter,
+  toPlainText,
+} from "./format-converter";
 import type {
   SendblueAdapterConfig,
   SendblueMessagePayload,
@@ -39,6 +42,7 @@ export class SendblueAdapter
   private chat: ChatInstance | null = null;
   private logger: Logger;
   private config: SendblueAdapterConfig;
+  private converter = new SendblueFormatConverter();
   private sdk: SendblueAPI;
 
   constructor(config: SendblueAdapterConfig & { logger?: Logger }) {
@@ -523,17 +527,7 @@ export class SendblueAdapter
   // ---------------------------------------------------------------------------
 
   private renderOutbound(message: AdapterPostableMessage): string {
-    if (typeof message === "string") return toPlainText(message);
-    if ("markdown" in message && typeof message.markdown === "string") {
-      return toPlainText(message.markdown);
-    }
-    if ("text" in message && typeof message.text === "string") {
-      return toPlainText(message.text);
-    }
-    if ("ast" in message && message.ast) {
-      return toPlainText(stringifyMarkdown(message.ast));
-    }
-    return "";
+    return this.converter.renderPostable(message);
   }
 
   private threadIdFromPayload(payload: SendblueMessagePayload): string {
