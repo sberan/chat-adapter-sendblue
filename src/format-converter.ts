@@ -25,12 +25,17 @@ export class SendblueFormatConverter extends BaseFormatConverter {
   }
 
   override renderPostable(message: AdapterPostableMessage): string {
+    if (
+      typeof message === "object" &&
+      "text" in message &&
+      typeof message.text === "string"
+    ) {
+      return toPlainText(message.text);
+    }
     return toPlainText(super.renderPostable(message));
   }
 
-  protected override cardChildToFallbackText(
-    child: CardChild,
-  ): string | null {
+  protected override cardChildToFallbackText(child: CardChild): string | null {
     if (child.type === "actions") {
       const choices = child.children.flatMap((action, index) =>
         "label" in action ? [`${index + 1}. ${action.label}`] : [],

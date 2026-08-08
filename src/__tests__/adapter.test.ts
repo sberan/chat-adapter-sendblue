@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { Actions, Button, Card, CardText } from "chat";
+import {
+  Actions,
+  type AdapterPostableMessage,
+  Button,
+  Card,
+  CardText,
+} from "chat";
 import type { SendblueMessagePayload } from "../types";
 
 const sendMock = mock(() =>
@@ -201,6 +207,24 @@ describe("SendblueAdapter", () => {
         unknown
       >;
       expect(args.content).toBe("bold text");
+    });
+
+    test("supports text-shaped outbound messages", async () => {
+      const adapter = createAdapter();
+      const threadId = adapter.encodeThreadId({
+        fromNumber: "+13137386158",
+        contactNumber: "+14155551234",
+      });
+
+      await adapter.postMessage(threadId, {
+        text: "Deploy **complete**",
+      } as unknown as AdapterPostableMessage);
+
+      const args = (sendMock.mock.calls as unknown[][])[0]![0] as Record<
+        string,
+        unknown
+      >;
+      expect(args.content).toBe("Deploy complete");
     });
 
     test("renders card prompts and actions as plain-text choices", async () => {

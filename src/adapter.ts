@@ -16,10 +16,7 @@ import type {
 } from "chat";
 import { ConsoleLogger, Message, parseMarkdown, stringifyMarkdown } from "chat";
 import SendblueAPI from "sendblue";
-import {
-  SendblueFormatConverter,
-  toPlainText,
-} from "./format-converter";
+import { SendblueFormatConverter, toPlainText } from "./format-converter";
 import type {
   SendblueAdapterConfig,
   SendblueMessagePayload,
