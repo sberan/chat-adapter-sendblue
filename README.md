@@ -98,6 +98,19 @@ await sdk.messages.send({
 });
 ```
 
+Or use the adapter helper when you need the provider message handle or an
+inline reply to a specific Sendblue message:
+
+```ts
+const result = await adapter.sendMediaMessage(
+  threadId,
+  "https://example.com/photo.jpg",
+  "Generated image",
+  { message_handle: "parent-message-handle" },
+);
+console.log(result.id);
+```
+
 ### Reactions (tapbacks)
 
 iMessage tapbacks are supported via `addReaction`. The adapter maps common emoji names to Sendblue's six tapback types:
@@ -110,6 +123,23 @@ iMessage tapbacks are supported via `addReaction`. The adapter maps common emoji
 | `laugh` | `haha` |
 | `emphasize` | `exclamation`, `!!` |
 | `question` | `?` |
+
+### Inline replies
+
+Inbound messages expose Sendblue's `reply_to` and `thread_originator` metadata
+on `message.raw`. To send an inline reply, pass the exact Sendblue
+`message_handle` as the optional third argument to `postMessage`:
+
+```ts
+const adapter = chat.getAdapter("sendblue") as SendblueAdapter;
+await adapter.postMessage(threadId, "Following up", {
+  message_handle: inboundMessage.raw.message_handle,
+});
+```
+
+The target must belong to the same Sendblue account, conversation, and sending
+line. The adapter does not invent message handles or downgrade a rejected reply
+to a standalone message.
 
 ### Typing indicators
 
