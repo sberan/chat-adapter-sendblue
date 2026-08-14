@@ -290,7 +290,7 @@ describe("SendblueAdapter", () => {
         contactNumber: "+14155551234",
       });
 
-      await adapter.sendMediaMessage(
+      const result = await adapter.sendMediaMessage(
         threadId,
         "https://app.midday.ai/midday-contact.vcf",
       );
@@ -302,6 +302,48 @@ describe("SendblueAdapter", () => {
       >;
       expect(args.media_url).toBe("https://app.midday.ai/midday-contact.vcf");
       expect(args.content).toBe("");
+      expect(result.id).toBe("msg_123");
+    });
+
+    test("sends media as a reply to the exact Sendblue message handle", async () => {
+      const adapter = createAdapter();
+      const threadId = adapter.encodeThreadId({
+        fromNumber: "+13137386158",
+        contactNumber: "+14155551234",
+      });
+
+      const result = await adapter.sendMediaMessage(
+        threadId,
+        "https://example.com/generated-image.png",
+        "Generated image",
+        { message_handle: "msg_parent" },
+      );
+
+      const args = (sendMock.mock.calls as unknown[][])[0]![0] as Record<
+        string,
+        unknown
+      >;
+      expect(args.reply_to).toEqual({ message_handle: "msg_parent" });
+      expect(result.id).toBe("msg_123");
+    });
+
+    test("rejects an empty media reply target without sending", async () => {
+      const adapter = createAdapter();
+      const threadId = adapter.encodeThreadId({
+        fromNumber: "+13137386158",
+        contactNumber: "+14155551234",
+      });
+
+      expect(
+        adapter.sendMediaMessage(
+          threadId,
+          "https://example.com/generated-image.png",
+          "",
+          { message_handle: "  " },
+        ),
+      ).rejects.toThrow("must have a message_handle");
+
+      expect(sendMock).not.toHaveBeenCalled();
     });
 
     test("skips sending for group threads", async () => {
@@ -311,9 +353,13 @@ describe("SendblueAdapter", () => {
         groupId: "group_xyz",
       });
 
-      await adapter.sendMediaMessage(threadId, "https://example.com/file.vcf");
+      const result = await adapter.sendMediaMessage(
+        threadId,
+        "https://example.com/file.vcf",
+      );
 
       expect(sendMock).not.toHaveBeenCalled();
+      expect(result.id).toBe("");
     });
   });
 

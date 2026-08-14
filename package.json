@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "chat": "^4.23.0",
-    "sendblue": "^3.6.1"
+    "sendblue": "^3.10.1"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",

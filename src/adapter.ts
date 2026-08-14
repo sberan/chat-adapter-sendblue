@@ -294,17 +294,41 @@ export class SendblueAdapter
     threadId: string,
     mediaUrl: string,
     content?: string,
-  ): Promise<void> {
+    replyTo?: SendblueReplyTarget,
+  ): Promise<RawMessage<SendblueMessagePayload>> {
     const decoded = this.decodeThreadId(threadId);
-    if (decoded.groupId) return;
+    if (decoded.groupId) {
+      return {
+        raw: {} as SendblueMessagePayload,
+        id: "",
+        threadId,
+      };
+    }
 
-    await this.sdk.messages.send({
+    if (
+      replyTo &&
+      (typeof replyTo.message_handle !== "string" ||
+        replyTo.message_handle.trim().length === 0)
+    ) {
+      throw new Error("Sendblue reply target must have a message_handle");
+    }
+
+    const response = await this.sdk.messages.send({
       number: decoded.contactNumber!,
       from_number: decoded.fromNumber,
       content: content ?? "",
       media_url: mediaUrl,
       status_callback: this.config.statusCallbackUrl,
+      ...(replyTo
+        ? { reply_to: { message_handle: replyTo.message_handle } }
+        : {}),
     });
+
+    return {
+      raw: response as unknown as SendblueMessagePayload,
+      id: response.message_handle ?? "",
+      threadId,
+    };
   }
 
   async stream(

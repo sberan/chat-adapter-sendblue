@@ -98,6 +98,19 @@ await sdk.messages.send({
 });
 ```
 
+Or use the adapter helper when you need the provider message handle or an
+inline reply to a specific Sendblue message:
+
+```ts
+const result = await adapter.sendMediaMessage(
+  threadId,
+  "https://example.com/photo.jpg",
+  "Generated image",
+  { message_handle: "parent-message-handle" },
+);
+console.log(result.id);
+```
+
 ### Reactions (tapbacks)
 
 iMessage tapbacks are supported via `addReaction`. The adapter maps common emoji names to Sendblue's six tapback types:
