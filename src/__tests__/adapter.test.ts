@@ -156,6 +156,60 @@ describe("SendblueAdapter", () => {
       expect(msg.attachments[0]!.url).toBe("https://cdn.sendblue.co/photo.jpg");
     });
 
+    test("recognizes signed HEIC URLs and bounds attachment downloads", async () => {
+      const originalFetch = globalThis.fetch;
+      const fetchMock = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+        expect(init?.signal).toBeInstanceOf(AbortSignal);
+        return new Response(Buffer.from("bounded-image"), {
+          headers: { "content-type": "image/heic" },
+          status: 200,
+        });
+      });
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+      try {
+        const adapter = createAdapter();
+        const payload = makePayload({
+          media_url: "https://cdn.sendblue.co/IMG_9618.heic?token=secret",
+        });
+        const msg = adapter.parseMessage(payload);
+
+        expect(msg.attachments[0]!.type).toBe("image");
+        expect(msg.attachments[0]!.name).toBe("IMG_9618.heic");
+        expect(msg.attachments[0]!.mimeType).toBe("image/heic");
+        expect(await msg.attachments[0]!.fetchData?.()).toEqual(
+          Buffer.from("bounded-image"),
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    test("rejects an attachment larger than 24 MiB while streaming", async () => {
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = mock(async () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new Uint8Array(13 * 1024 * 1024));
+              controller.enqueue(new Uint8Array(12 * 1024 * 1024));
+              controller.close();
+            },
+          }),
+          { status: 200 },
+        )) as unknown as typeof fetch;
+      try {
+        const adapter = createAdapter();
+        const msg = adapter.parseMessage(makePayload({
+          media_url: "https://cdn.sendblue.co/IMG_9618.heic",
+        }));
+        await expect(msg.attachments[0]!.fetchData?.()).rejects.toThrow(
+          "exceeds 24 MiB",
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
     test("parses data: URI as attachment with decoded buffer", () => {
       const adapter = createAdapter();
       const b64 = Buffer.from("fake-image-data").toString("base64");
