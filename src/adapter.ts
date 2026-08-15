@@ -29,6 +29,8 @@ import { REACTION_ALIASES, VALID_REACTIONS } from "./types";
 
 const DEFAULT_WEBHOOK_SECRET_HEADER = "sb-signing-secret";
 const DEFAULT_ALLOWED_SERVICES = ["iMessage"];
+const MAX_ATTACHMENT_BYTES = 24 * 1024 * 1024;
+const ATTACHMENT_FETCH_TIMEOUT_MS = 60_000;
 
 export class SendblueAdapter
   implements Adapter<SendblueThreadId, SendblueMessagePayload>
@@ -604,7 +606,19 @@ export class SendblueAdapter
   }
 
   private buildAttachment(mediaUrl: string): Attachment {
-    const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "heic", "webp"]);
+    const IMAGE_EXTS = new Set([
+      "avif",
+      "bmp",
+      "gif",
+      "heic",
+      "heif",
+      "jpeg",
+      "jpg",
+      "png",
+      "tif",
+      "tiff",
+      "webp",
+    ]);
 
     if (mediaUrl.startsWith("data:")) {
       const commaIdx = mediaUrl.indexOf(",");
@@ -624,19 +638,54 @@ export class SendblueAdapter
       }
     }
 
-    const ext = mediaUrl.split(".").pop()?.toLowerCase() ?? "";
+    const pathname = new URL(mediaUrl).pathname;
+    const name = pathname.split("/").pop() || "attachment";
+    const ext = name.split(".").pop()?.toLowerCase() ?? "";
     const isImage = IMAGE_EXTS.has(ext);
     return {
       type: isImage ? "image" : "file",
-      name: mediaUrl.split("/").pop() ?? "attachment",
+      name,
       mimeType: isImage
         ? `image/${ext === "jpg" ? "jpeg" : ext}`
         : "application/octet-stream",
       url: mediaUrl,
-      fetchData: async () => {
-        const res = await fetch(mediaUrl);
-        return Buffer.from(await res.arrayBuffer());
-      },
+      fetchData: async () => await fetchBoundedAttachment(mediaUrl),
     };
   }
+}
+
+async function fetchBoundedAttachment(mediaUrl: string): Promise<Buffer> {
+  const response = await fetch(mediaUrl, {
+    signal: AbortSignal.timeout(ATTACHMENT_FETCH_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error("Sendblue attachment download failed");
+  }
+  const declaredLength = Number(response.headers.get("content-length") || 0);
+  if (declaredLength > MAX_ATTACHMENT_BYTES) {
+    throw new Error("Sendblue attachment exceeds 24 MiB");
+  }
+  if (!response.body) {
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length === 0 || bytes.length > MAX_ATTACHMENT_BYTES) {
+      throw new Error("Sendblue attachment has invalid size");
+    }
+    return bytes;
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_ATTACHMENT_BYTES) {
+      await reader.cancel().catch(() => {});
+      throw new Error("Sendblue attachment exceeds 24 MiB");
+    }
+    chunks.push(Buffer.from(value));
+  }
+  if (size === 0) throw new Error("Sendblue attachment has invalid size");
+  return Buffer.concat(chunks, size);
 }
